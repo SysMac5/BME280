@@ -1,12 +1,27 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *   Höf.:  S. Maggi Snorrason
+ *  Netf.:  sms70@hi.is
+ *  Dags.:  12. október 2023                                   
+ *                                                             
+ *     Lýsing:  Hér eru allar útfærslur á aðgerðunum sem
+ *              skilgreindar eru í BME280.h hausnum.
+ * 
+ *              Einnig eru aðgerðir (e. methods) neðst sem
+ *              höfundur útfærði ekki en voru notaðar í
+ *              útfærslum aðgerða höfundar.
+ * 
+ *              Byggt á sniðmáti eftir Mána Magnússon.
+ *                        
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #include "BME280.h"
-#include <string.h> // Used for memcpy
 
 /**
  * @brief Upphafsstilla samskipti við skynjarann.
- * @return True ef upphafsstilling tókst, annars false.
+ * @return \c True ef upphafsstilling tekst, annars \c false.
  */
 bool BME280::init(void) {
-    if (!reset()) return false;
+    if (!reset() || !is_connected()) return false;
 
     temperature = pressure = humidity = 0; //kannski má sleppa þessu
 
@@ -21,7 +36,7 @@ bool BME280::init(void) {
 
 /**
  * @brief Les hitastig, loftþrýsing og rakastig frá skynjaranum.
- * @return True ef aflestur tekst, annars false.
+ * @return \c True ef aflestur tekst, annars \c false.
  */
 bool BME280::read() {
     uint8_t* data_in_bytes = read_registers(BME280_PRESSURE_MSB, 8);
@@ -44,7 +59,7 @@ bool BME280::read() {
 
 /**
  * @brief Athugar ef skynjarinn er tengdur.
- * @return True ef skynjarinn er tengdur, annars false.
+ * @return \c True ef skynjarinn er tengdur, annars \c false.
  */
 bool BME280::is_connected(void) {
     uint8_t* data_in_bytes = read_registers(BME280_ID, 1);
@@ -53,12 +68,12 @@ bool BME280::is_connected(void) {
 
 /**
  * @brief Stillir aflestur nemanna í skynjaranum.
- * @param mode Tveir bitar sem segja til um hvort skynjarinn sé í Sleep Mode (mode=00), 
- *        Forced Mode (mode=01 eða mode=10) eða Normal Mode (mode=11).
+ * @param mode Tveir bitar sem segja til um hvort skynjarinn sé í Sleep Mode ( \c mode=00 ), 
+ *        Forced Mode ( \c mode=01 eða \c mode=10 ) eða Normal Mode ( \c mode=11 ).
  * @param oversampling_rate Þrír bitar sem segja til um hvort og hversu mikið skynjarinn
  *        yfirsafnar gildunum frá nemunum. Bitarnir 000 eru Skip, 001 er yfirsögnun sinnum 1,
  *        010 er sinnum 2, 011 er sinnum 4, 100 er sinnum 8 og 101 er sinnum 16.
- * @return True ef stilling tókst, annars false.
+ * @return \c True ef stilling tekst, annars \c false.
  */
 bool BME280::set_mode(uint8_t mode, uint8_t oversampling_rate) {
     if (mode < 0b00 || mode > 0b11) return false;
@@ -74,7 +89,7 @@ bool BME280::set_mode(uint8_t mode, uint8_t oversampling_rate) {
 
 /**
  * @brief Endurræsir skynjarann.
- * @return True ef endurræsing tekst, annars false.
+ * @return \c True ef endurræsing tekst, annars \c false.
  */
 bool BME280::reset(void) {
     if (!send_command(BME280_CMD_RESET, 0xB6)) return false;
@@ -103,7 +118,7 @@ float BME280::get_pressure(void) {
 
 /**
  * @brief Skilar rakastiginu frá skynjara.
- * @return Rakastigið sem hlutfallslegur raki [%]
+ * @return Rakastigið sem hlutfallslegur raki [%].
  */
 float BME280::get_humidity(void) {
     return humidity;
@@ -116,7 +131,7 @@ float BME280::get_humidity(void) {
  * @brief Sendir skipun á skynjarann.
  * @param command Skipunargistið, 2 bæti að lengd.
  * @param argument Inngildi skipunarinnar, 2 bæti að lengd.
- * @return True ef skipun tekst, annars false.
+ * @return \c True ef skipun tekst, annars \c false.
  */
 bool BME280::send_command(uint16_t command, uint16_t argument) {
     uint8_t buffer[5];
@@ -132,7 +147,7 @@ bool BME280::send_command(uint16_t command, uint16_t argument) {
 /**
  * @brief Sendir skipun á skynjarann.
  * @param command Skipunargistið, 2 bæti að lengd.
- * @return True ef skipun tekst, annars false.
+ * @return \c True ef skipun tekst, annars \c false.
  */
 bool BME280::send_command(uint16_t command) {
     uint8_t buffer[2];
@@ -185,7 +200,7 @@ uint8_t* BME280::read_registers(uint16_t register_address, uint16_t register_cou
 }
 
 /// @brief Fetch the compensation data from the BME280
-/// @return True of fetching successful, false if not
+/// @return \c True of fetching successful, \c false if not
 bool BME280::fetch_compensation_data(void) {
     // We want to read the full compensation register data
     uint8_t buffer[33]{0};

@@ -1,3 +1,21 @@
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ *   Höf.:  S. Maggi Snorrason
+ *  Netf.:  sms70@hi.is
+ *  Dags.:  12. október 2023                                   
+ *                                                             
+ *     Lýsing:  Haus fyrir BME280.cpp skránna þar sem búið er
+ *              að skilgreina BME280 hlutinn sem er tengingin
+ *              við BME280 skynjarann.
+ * 
+ *              Einnig er búið að skilgreina staðföng gistanna
+ *              í skynjaranum og allar mögulegarstillingarnar 
+ *              á mode og oversampling rate.
+ * 
+ *              Allar aðgerðir (e. methods) fyrir BME280
+ *              hlutinn eru einnig skilgreindar, þ.e. API.
+ * 
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
 #pragma once
 #include <hardware/i2c.h>
 
@@ -69,20 +87,23 @@ public:
     BME280() {}
 
     bool init(void);
-    bool read(void /* This can be a void if using getter functions or a pointer to where the values will be placed */);
+    bool read(void);
 
     bool is_connected(void);
     bool set_mode(uint8_t mode, uint8_t oversampling_rate);
     bool reset(void);
 
-    float get_temperature(void); // hverju er skilað
-    float get_pressure(void); // hverju er skilað
-    float get_humidity(void); // hverju er skilað
+    float get_temperature(void);
+    float get_pressure(void);
+    float get_humidity(void);
 
 private:
+    /** @brief I2C vélbúnaðartilvikið sem er notað. */
     i2c_inst_t* _i2c;
+    /** @brief I2C staðfangið fyrir skynjarann. */
     uint8_t _address;
 
+    /** @brief Gildin frá nemum skynjarans. */
     float temperature, pressure, humidity;
 
     struct BME_Comp_Coeff_t {
