@@ -1,50 +1,174 @@
 #include "BME280.h"
 #include <string.h> // Used for memcpy
 
-/*
- * TO-DO:
- *  - Complete the init code
- *  - Complete the read code
- *  - Implement any added methods
-*/
-
-/// @brief Initialize communications for the BME280 sensor
-/// @return True if successful, false if not
+/**
+ * @brief Upphafsstilla samskipti við skynjarann.
+ * @return True ef upphafsstilling tókst, annars false.
+ */
 bool BME280::init(void) {
-    /* Reset the sensor? */
+    if (!reset()) return false;
+
+    temperature = pressure = humidity = 0; //kannski má sleppa þessu
 
     bool successful = true;
-    successful &= fetch_compensation_data(); // If fetching worked then successful stays true, otherwise it's set to false
-    sleep_us(250); // Wait a bit to allow the sensor to finish processing
+    successful &= fetch_compensation_data();
+    sleep_us(250);
 
-    /* Insert other methods to call as part of setting up communications */
-    /* Good idea to set the sensor to normal mode and set oversampling rates to something other than 0 (which skips measurements) */
+    successful &= set_mode(NORMAL_MODE, OVERSAMPLING_RATE_16);
 
     return successful;
 }
 
-/// @brief Read temperature, pressure and relative humidity from the BME280
-/// @return True if successful, false if not
+/**
+ * @brief Les hitastig, loftþrýsing og rakastig frá skynjaranum.
+ * @return True ef aflestur tekst, annars false.
+ */
 bool BME280::read() {
-    /* Read raw bytes from sensor*/
+    uint8_t* data_in_bytes = read_registers(BME280_PRESSURE_MSB, 8);
     
-    int32_t raw_t, raw_p, raw_h;
+    int32_t raw_temperature, raw_pressure, raw_humidity;
 
-    /* Insert the raw bytes into the respective variables using bitwise OR (|) and bit shifting (<< and >>) */
-    /* See the SCD30 read function to see how it's possible to shift and bitwise OR to assemble an int32_t from multiple bytes */
-    /* Note the sensor is big endian, so the values that are read out first (lowest address) are the most significant bits */
+    raw_pressure = (data_in_bytes[0] | data_in_bytes[1] | (data_in_bytes[2] << 4));
+    raw_temperature = (data_in_bytes[3] | data_in_bytes[4] | (data_in_bytes[5] << 4));
+    raw_humidity = (data_in_bytes[6] | data_in_bytes[7]);
 
-    float temperature, pressure, humidity;
-    compensate_values(&temperature, &pressure, &humidity, raw_t, raw_p, raw_h);
-
-    /* Do something with the values, use getter methods? Insert them into public variables? */
+    compensate_values(  &temperature, 
+                        &pressure, 
+                        &humidity, 
+                        raw_temperature, 
+                        raw_pressure, 
+                        raw_humidity);
 
     return true;
+}
+
+/**
+ * @brief Athugar ef skynjarinn er tengdur.
+ * @return True ef skynjarinn er tengdur, annars false.
+ */
+bool BME280::is_connected(void) {
+    uint8_t* data_in_bytes = read_registers(BME280_ID, 1);
+    return (data_in_bytes[0] | data_in_bytes[1]) == BME280_CHIP_ID;
+}
+
+/**
+ * @brief Stillir aflestur nemanna í skynjaranum.
+ * @param mode Tveir bitar sem segja til um hvort skynjarinn sé í Sleep Mode (mode=00), 
+ *        Forced Mode (mode=01 eða mode=10) eða Normal Mode (mode=11).
+ * @param oversampling_rate Þrír bitar sem segja til um hvort og hversu mikið skynjarinn
+ *        yfirsafnar gildunum frá nemunum. Bitarnir 000 eru Skip, 001 er yfirsögnun sinnum 1,
+ *        010 er sinnum 2, 011 er sinnum 4, 100 er sinnum 8 og 101 er sinnum 16.
+ * @return True ef stilling tókst, annars false.
+ */
+bool BME280::set_mode(uint8_t mode, uint8_t oversampling_rate) {
+    if (mode < 0b00 || mode > 0b11) return false;
+    if (oversampling_rate < 0b000 || oversampling_rate > 0b101) return false;
+
+    bool success = true;
+    success &= send_command(BME280_CTRL_HUMIDITY, oversampling_rate & 0b111);
+    success &= send_command(BME280_CTRL_MEASURE,
+                            (oversampling_rate & 0b111) | (oversampling_rate & 0b111) | (mode & 0b11));
+
+    return success;
+}
+
+/**
+ * @brief Endurræsir skynjarann.
+ * @return True ef endurræsing tekst, annars false.
+ */
+bool BME280::reset(void) {
+    if (!send_command(BME280_CMD_RESET, 0xB6)) return false;
+    sleep_ms(10);
+    return true;
+}
+
+
+/********** Getters **********/
+
+/**
+ * @brief Skilar hitastig frá skynjara.
+ * @return Hitastigið í Celsíus [°C].
+ */
+float BME280::get_temperature(void) {
+    return temperature;
+}
+
+/**
+ * @brief Skilar loftþrýstinginn frá skynjara.
+ * @return Loftþrýstingur í hektópaskal [hPa].
+ */
+float BME280::get_pressure(void) {
+    return pressure;
+}
+
+/**
+ * @brief Skilar rakastiginu frá skynjara.
+ * @return Rakastigið sem hlutfallslegur raki [%]
+ */
+float BME280::get_humidity(void) {
+    return humidity;
 }
 
 
 /********** Private methods **********/
 
+/**
+ * @brief Sendir skipun á skynjarann.
+ * @param command Skipunargistið, 2 bæti að lengd.
+ * @param argument Inngildi skipunarinnar, 2 bæti að lengd.
+ * @return True ef skipun tekst, annars false.
+ */
+bool BME280::send_command(uint16_t command, uint16_t argument) {
+    uint8_t buffer[5];
+    buffer[0] = (command >> 8) & 0xFF;
+    buffer[1] = command & 0xFF;
+    buffer[2] = argument >> 8;
+    buffer[3] = argument & 0xFF;
+    buffer[4] = crc8(buffer + 2, 2);
+
+    return (i2c_write_timeout_us(_i2c, _address, buffer, 5, false, 10000) == 5);
+}
+
+/**
+ * @brief Sendir skipun á skynjarann.
+ * @param command Skipunargistið, 2 bæti að lengd.
+ * @return True ef skipun tekst, annars false.
+ */
+bool BME280::send_command(uint16_t command) {
+    uint8_t buffer[2];
+    buffer[0] = (command >> 8) & 0xFF;
+    buffer[1] = command & 0xFF;
+    
+    return (i2c_write_timeout_us(_i2c, _address, buffer, 2, false, 10000) == 2);
+}
+
+/**
+ * @brief Les úr gistum skynjara.
+ * @param register_address Staðfang fyrsta gistisins, 2 bæti að lengd.
+ * @param register_count Fjöldi gista sem á að lesa.
+ * @return Bætafylki með gildum úr fyrsta gistinu og (register_count - 1) næstu gistum.
+ */
+uint8_t* BME280::read_registers(uint16_t register_address, uint16_t register_count) {
+    send_command(register_address);
+    sleep_ms(5);
+
+    size_t len = register_count * 2;
+    uint8_t buffer[len];
+
+    i2c_read_timeout_us(_i2c, _address, buffer, len, false, 10000);
+
+    return buffer;
+}
+
+
+
+
+
+
+
+/*
+ *  Allt hér fyrir neðan var ekki forritað af nemanda.
+ */
 
 /// @brief Type pun a uint16_t variable to an int16_t variable
 /// @param x Input value in uint16_t format
@@ -152,4 +276,24 @@ void BME280::compensate_values(  float* temperature,
     h_temp = (h_temp < 0 ? 0 : h_temp);
     h_temp = (h_temp > 419430400 ? 419430400 : h_temp);
     *humidity = (float)((uint32_t)(h_temp >> 12)) / 1024.0f;
+}
+
+///@brief Calculate CRC8 checksum
+///@param *data
+///       Pointer to data to calculate checksum for
+///@param len
+///       Length of data in bytes
+///@return Checksum byte
+static uint8_t crc8(const uint8_t *data, int len) {
+    const uint8_t POLYNOMIAL(0x31);
+    uint8_t crc(0xFF);
+
+    for(int j = len; j; --j) {
+        crc ^= *data++;
+
+        for(int i = 8; i; --i) {
+            crc = (crc & 0x80) ? (crc << 1) ^ POLYNOMIAL : (crc << 1);
+        }
+    }
+    return crc;
 }
