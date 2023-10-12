@@ -14,7 +14,7 @@ bool BME280::init(void) {
     /* Reset the sensor? */
 
     bool successful = true;
-    successful &= fetchCompensationData(); // If fetching worked then successful stays true, otherwise it's set to false
+    successful &= fetch_compensation_data(); // If fetching worked then successful stays true, otherwise it's set to false
     sleep_us(250); // Wait a bit to allow the sensor to finish processing
 
     /* Insert other methods to call as part of setting up communications */
@@ -35,7 +35,7 @@ bool BME280::read() {
     /* Note the sensor is big endian, so the values that are read out first (lowest address) are the most significant bits */
 
     float temperature, pressure, humidity;
-    compensateValues(&temperature, &pressure, &humidity, raw_t, raw_p, raw_h);
+    compensate_values(&temperature, &pressure, &humidity, raw_t, raw_p, raw_h);
 
     /* Do something with the values, use getter methods? Insert them into public variables? */
 
@@ -62,7 +62,7 @@ bool BME280::read() {
 
 /// @brief Fetch the compensation data from the BME280
 /// @return True of fetching successful, false if not
-bool BME280::fetchCompensationData(void) {
+bool BME280::fetch_compensation_data(void) {
     // We want to read the full compensation register data
     uint8_t buffer[33]{0};
 
@@ -108,7 +108,7 @@ bool BME280::fetchCompensationData(void) {
 /// @param raw_temperature Raw temperature reading from BME280 sensor
 /// @param raw_pressure Raw pressure reading from BME280 sensor
 /// @param raw_humidity Raw humidity reading from BME280 sensor
-void BME280::compensateValues(  float* temperature,
+void BME280::compensate_values(  float* temperature,
                                 float* pressure,
                                 float* humidity,
                                 int32_t raw_temperature,

@@ -18,6 +18,27 @@
 
 /* Insert memory map here or inside the class (note, don't put #define inside classes) */
 
+#define BME280_ID               0xDO    // Auðkennisgistið.
+#define BME280_CMD_RESET        0xE0    // Skipar endurræsun.
+#define BME280_CTRL_HUMIDITY    0xF2    // Stýrir umframsýnatöku á rakastigi.
+#define BME280_STATUS           0xF3    // Gistið sem geymir stöðuna.
+#define BME280_CTRL_MEASURE     0xF4    // Stýrir umframsýnatöku á hitastigi og loftþrýstingi.
+#define BME280_CONFIG           0xF5    // Gistið ákvarðar tíðni, síun and viðmót.
+
+// Hrátt loftþrýsingsmæligildi
+#define BME280_PRESSURE_MSB     0xF7    // Most Significant Byte
+#define BME280_PRESSURE_LSB     0xF8    // Least Significant Byte
+#define BME280_PRESSURE_XLSB    0xF9    // Extra Least Significant Byte
+
+// Hrátt hitastigsmæligildi
+#define BME280_TEMPERATURE_MSB  0xFA    // Most Significant Byte
+#define BME280_TEMPERATURE_LSB  0xFB    // Least Significant Byte
+#define BME280_TEMPERATURE_XLSB 0xFC    // Extra Least Significant Byte
+
+// Hrátt rakastigsmæligildi
+#define BME280_HUMIDITY_MSB     0xFD    // Most Significant Byte
+#define BME280_HUMIDITY_LSB     0xFE    // Least Significant Byte
+
 class BME280 {
 public:
     /// @brief Construct a new BME280 object
@@ -31,6 +52,14 @@ public:
 
     /* Insert other methods like checking if connected, setting modes, changing oversampling rate */
 
+    bool is_connected(void);
+    bool set_mode(uint8_t mode /* taka við mode, veit ekki hvernig*/);
+    bool set_oversampling_rate(void /* tekur við hverju? */);
+
+    int get_temperature(void); // hverju er skilað
+    int get_pressure(void); // hverju er skilað
+    int get_humidity(void); // hverju er skilað
+
 private:
     i2c_inst_t* _i2c;
     uint8_t _address;
@@ -42,8 +71,8 @@ private:
         uint8_t dig_H1, dig_H3;
         int8_t dig_H6;  
     } comp_coeffs;
-    bool fetchCompensationData(void);
-    void compensateValues(  float* temperature,
+    bool fetch_compensation_data(void);
+    void compensate_values(  float* temperature,
                             float* pressure,
                             float* humidity,
                             int32_t raw_temperature,
