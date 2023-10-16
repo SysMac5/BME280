@@ -12,40 +12,49 @@
 #include <hardware/i2c.h>
 #include <BME280.h>
 
-const uint8_t PIN_BME_SDA = 19;
-const uint8_t PIN_BME_SCL = 20;
+const uint8_t PIN_BME_SDA = 4;
+const uint8_t PIN_BME_SCL = 5;
 
 BME280 bme;
 
 void init() {
+
     stdio_init_all();
-    time_init();
-    i2c_init(i2c1, 400000);
+
+    sleep_ms(5000);
+
+    printf("[UPPL.] I2C ræsing með Actual set baudrate %d Hz \n", i2c_init(i2c0, 400000));
+    printf("[UPPL.] I2C HW block notað: %d \n", 0);
+    printf("[UPPL.] PIN_BMW_SDA = %d \n", PIN_BME_SDA);
+    printf("[UPPL.] PIN_BMW_SCL = %d \n", PIN_BME_SCL);
+    printf("[UPPL.] I2C staðfangið = 0x%02x \n", BME280_DEFAULT_I2CADDR);
+    
     gpio_set_function(PIN_BME_SDA, GPIO_FUNC_I2C);
     gpio_set_function(PIN_BME_SCL, GPIO_FUNC_I2C);
-    bme = BME280(i2c1, BME280_ALTERNATE_I2CADDR);
+    
+    bme = BME280(i2c0, BME280_DEFAULT_I2CADDR);
 
     sleep_ms(5000);
     
-    printf("[UPPL.] Upphafsstillir BME280... ");
+    printf("[UPPL.] Upphafsstillir BME280... \n");
     if(!bme.init()) {
-        printf("[UPPL.] Upphafsstilling misstókst!\n");
+        printf("[VILLA] Upphafsstilling misstókst!\n");
         while(true); // Stop here
     } else {
-        printf("[UPPL.] Upphafsstillt.\n");
+        printf("[UPPL.] Upphafsstillt.\n\n");
     }
 }
 
 void loop() {
-    /*Read from BME and print results*/
+    if (bme.is_connected()) bme.read();
+    /*
+    printf("       Hitastig :  %.2f °C            \n", bme.get_temperature());
+    printf(" Loftþrýstingur :  %.2f hPa           \n", bme.get_pressure());
+    printf("       Rakastig :  %.1f%%             \n", bme.get_humidity());
+    */
+    sleep_ms(1000);
 
-    printf("\n[UPPL.] Sækir gögn til BME280.\n");
-
-    if (bme.is_connected) bme.read();
-
-    printf("Hitastig: %f °C \n", bme.get_temperature);
-    printf("Loftþrýstingur: %f hPa \n", bme.get_pressure);
-    printf("Rakastig: %f% \n", bme.get_humidit);
+    //printf("\033[F\033[F\033[F");
 }
 
 int main() {

@@ -23,7 +23,7 @@
 #define BME280_ALTERNATE_I2CADDR    0x77    // SDO tengt við VDDIO.
 #define BME280_CHIP_ID              0x60    // Auðkenni skynjarans.
 
-#define BME280_ID                   0xDO    // Auðkennisgistið.
+#define BME280_ID                   0xD0    // Auðkennisgistið.
 #define BME280_CMD_RESET            0xE0    // Skipar endurræsun.
 #define BME280_CTRL_HUMIDITY        0xF2    // Stýrir umframsýnatöku á rakastigi.
 #define BME280_STATUS               0xF3    // Gistið sem geymir stöðuna.
@@ -122,7 +122,9 @@ private:
                             int32_t raw_pressure,
                             int32_t raw_humidity);
 
-    bool send_command(uint16_t command, uint16_t argument);
-    bool send_command(uint16_t command);
-    uint8_t* read_registers(uint16_t reg_address, uint16_t reg_count);
+    bool send_command(uint8_t register_address, uint8_t argument);
+    bool send_command(uint8_t register_address);
+    bool read_registers(uint8_t register_address, uint8_t register_count, uint8_t *data);
 };
+
+static uint8_t crc8(const uint8_t *data, int len);

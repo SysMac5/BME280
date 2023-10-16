@@ -15,6 +15,8 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "BME280.h"
+#include <string.h>
+#include <stdio.h>
 
 /**
  * @brief Upphafsstilla samskipti við skynjarann.
@@ -27,9 +29,9 @@ bool BME280::init(void) {
 
     bool successful = true;
     successful &= fetch_compensation_data();
-    sleep_us(250);
+    sleep_us(500);
 
-    successful &= set_mode(NORMAL_MODE, OVERSAMPLING_RATE_16);
+    successful &= set_mode(NORMAL_MODE, OVERSAMPLING_RATE_8);
 
     return successful;
 }
@@ -39,13 +41,21 @@ bool BME280::init(void) {
  * @return \c True ef aflestur tekst, annars \c false.
  */
 bool BME280::read() {
-    uint8_t* data_in_bytes = read_registers(BME280_PRESSURE_MSB, 8);
+    uint8_t data[9];
+
+    if (!read_registers(BME280_PRESSURE_MSB, 8, data)) {
+        return false;
+    }
     
     int32_t raw_temperature, raw_pressure, raw_humidity;
 
-    raw_pressure = (data_in_bytes[0] | data_in_bytes[1] | (data_in_bytes[2] << 4));
-    raw_temperature = (data_in_bytes[3] | data_in_bytes[4] | (data_in_bytes[5] << 4));
-    raw_humidity = (data_in_bytes[6] | data_in_bytes[7]);
+    raw_pressure = (data[0] | data[1] | (data[2] >> 4));
+    raw_temperature = (data[3] | data[4] | (data[5] >> 4));
+    raw_humidity = (data[6] | data[7]);
+
+    printf("raw pressure %d \n", raw_pressure);
+    printf("raw temperature %d \n", raw_temperature);
+    printf("raw humidity %d \n", raw_humidity);
 
     compensate_values(  &temperature, 
                         &pressure, 
@@ -53,6 +63,10 @@ bool BME280::read() {
                         raw_temperature, 
                         raw_pressure, 
                         raw_humidity);
+
+    printf("pressure %f hPa\n", pressure);
+    printf("temperature %f °C\n", temperature);
+    printf("humidity %f %%\n\n", humidity);
 
     return true;
 }
@@ -62,8 +76,12 @@ bool BME280::read() {
  * @return \c True ef skynjarinn er tengdur, annars \c false.
  */
 bool BME280::is_connected(void) {
-    uint8_t* data_in_bytes = read_registers(BME280_ID, 1);
-    return (data_in_bytes[0] | data_in_bytes[1]) == BME280_CHIP_ID;
+    uint8_t data[1];
+    if (read_registers(BME280_ID, 1, data)) {
+        return data[0] == BME280_CHIP_ID;
+    } else {
+        return false;
+    }
 }
 
 /**
@@ -129,50 +147,43 @@ float BME280::get_humidity(void) {
 
 /**
  * @brief Sendir skipun á skynjarann.
- * @param command Skipunargistið, 2 bæti að lengd.
- * @param argument Inngildi skipunarinnar, 2 bæti að lengd.
+ * @param register_address Staðfang skipunargistis, 1 bæti að lengd.
+ * @param argument Inngildi skipunarinnar, 1 bæti að lengd.
  * @return \c True ef skipun tekst, annars \c false.
  */
-bool BME280::send_command(uint16_t command, uint16_t argument) {
-    uint8_t buffer[5];
-    buffer[0] = (command >> 8) & 0xFF;
-    buffer[1] = command & 0xFF;
-    buffer[2] = argument >> 8;
-    buffer[3] = argument & 0xFF;
-    buffer[4] = crc8(buffer + 2, 2);
+bool BME280::send_command(uint8_t register_address, uint8_t argument) {
+    uint8_t buffer[2];
+    buffer[0] = register_address & 0xFF;
+    buffer[1] = argument & 0xFF;
 
-    return (i2c_write_timeout_us(_i2c, _address, buffer, 5, false, 10000) == 5);
+    return (i2c_write_timeout_us(_i2c, _address, buffer, 2, false, 100000) == 2);
 }
 
 /**
  * @brief Sendir skipun á skynjarann.
- * @param command Skipunargistið, 2 bæti að lengd.
+ * @param register_address Staðfang skipunargistis, 1 bæti að lengd.
  * @return \c True ef skipun tekst, annars \c false.
  */
-bool BME280::send_command(uint16_t command) {
-    uint8_t buffer[2];
-    buffer[0] = (command >> 8) & 0xFF;
-    buffer[1] = command & 0xFF;
+bool BME280::send_command(uint8_t register_address) {
+    uint8_t buffer[1];
+    buffer[0] = register_address & 0xFF;
     
-    return (i2c_write_timeout_us(_i2c, _address, buffer, 2, false, 10000) == 2);
+    return (i2c_write_timeout_us(_i2c, _address, buffer, 1, false, 100000) == 1);
 }
 
 /**
  * @brief Les úr gistum skynjara.
- * @param register_address Staðfang fyrsta gistisins, 2 bæti að lengd.
- * @param register_count Fjöldi gista sem á að lesa.
- * @return Bætafylki með gildum úr fyrsta gistinu og (register_count - 1) næstu gistum.
+ * @param register_address Staðfang fyrsta gistisins, 1 bæti að lengd.
+ * @param register_count Fjöldi gista sem á að vista.
+ * @param data Bendill á fylki sem tekur við gögnunum.
+ * @return \c True ef aflestur tekst, annars \c false.
  */
-uint8_t* BME280::read_registers(uint16_t register_address, uint16_t register_count) {
+bool BME280::read_registers(uint8_t register_address, uint8_t register_count, uint8_t *data) {
     send_command(register_address);
-    sleep_ms(5);
 
-    size_t len = register_count * 2;
-    uint8_t buffer[len];
+    sleep_ms(10);
 
-    i2c_read_timeout_us(_i2c, _address, buffer, len, false, 10000);
-
-    return buffer;
+    return (i2c_read_timeout_us(_i2c, _address, data, register_count, false, 100000) == register_count);
 }
 
 
@@ -291,24 +302,4 @@ void BME280::compensate_values(  float* temperature,
     h_temp = (h_temp < 0 ? 0 : h_temp);
     h_temp = (h_temp > 419430400 ? 419430400 : h_temp);
     *humidity = (float)((uint32_t)(h_temp >> 12)) / 1024.0f;
-}
-
-///@brief Calculate CRC8 checksum
-///@param *data
-///       Pointer to data to calculate checksum for
-///@param len
-///       Length of data in bytes
-///@return Checksum byte
-static uint8_t crc8(const uint8_t *data, int len) {
-    const uint8_t POLYNOMIAL(0x31);
-    uint8_t crc(0xFF);
-
-    for(int j = len; j; --j) {
-        crc ^= *data++;
-
-        for(int i = 8; i; --i) {
-            crc = (crc & 0x80) ? (crc << 1) ^ POLYNOMIAL : (crc << 1);
-        }
-    }
-    return crc;
 }
