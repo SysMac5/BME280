@@ -31,7 +31,7 @@ bool BME280::init(void) {
     successful &= fetch_compensation_data();
     sleep_us(500);
 
-    successful &= set_mode(NORMAL_MODE, OVERSAMPLING_RATE_8);
+    successful &= set_mode(NORMAL_MODE, OVERSAMPLING_RATE_16);
 
     return successful;
 }
@@ -49,13 +49,9 @@ bool BME280::read() {
     
     int32_t raw_temperature, raw_pressure, raw_humidity;
 
-    raw_pressure = (data[0] | data[1] | (data[2] >> 4));
-    raw_temperature = (data[3] | data[4] | (data[5] >> 4));
-    raw_humidity = (data[6] | data[7]);
-
-    printf("raw pressure %d \n", raw_pressure);
-    printf("raw temperature %d \n", raw_temperature);
-    printf("raw humidity %d \n", raw_humidity);
+    raw_pressure = ((data[0] << 12) | (data[1] << 4) | (data[2] >> 4));
+    raw_temperature = ((data[3] << 12) | (data[4] << 4) | (data[5] >> 4));
+    raw_humidity = ((data[6] << 8) | data[7]);
 
     compensate_values(  &temperature, 
                         &pressure, 
@@ -63,10 +59,6 @@ bool BME280::read() {
                         raw_temperature, 
                         raw_pressure, 
                         raw_humidity);
-
-    printf("pressure %f hPa\n", pressure);
-    printf("temperature %f °C\n", temperature);
-    printf("humidity %f %%\n\n", humidity);
 
     return true;
 }
@@ -98,9 +90,9 @@ bool BME280::set_mode(uint8_t mode, uint8_t oversampling_rate) {
     if (oversampling_rate < 0b000 || oversampling_rate > 0b101) return false;
 
     bool success = true;
-    success &= send_command(BME280_CTRL_HUMIDITY, oversampling_rate & 0b111);
+    success &= send_command(BME280_CTRL_HUMIDITY, oversampling_rate);
     success &= send_command(BME280_CTRL_MEASURE,
-                            (oversampling_rate & 0b111) | (oversampling_rate & 0b111) | (mode & 0b11));
+                            (oversampling_rate << 5) | (oversampling_rate << 2) | mode);
 
     return success;
 }
